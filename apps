@@ -1,10 +1,24 @@
 APT
 
 audacity
-bash
-brave-browser
-cifs-utils
-curl
+
+sudo dnf install dnf-plugins-core
+sudo dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo
+sudo dnf install brave-browser
+
+
+sudo dnf install -y cifs-utils
+sudo dnf install -y curl
+
+sudo dnf install libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel mesa-libGL-devel pipewire-devel
+cd
+mkdir apps
+cd apps
+git clone https://github.com/grizzlypeak3d/DJV.git
+sh DJV/sbuild-linux.sh
+
+
+
 djv2
 fastfetch
 ffmpeg
