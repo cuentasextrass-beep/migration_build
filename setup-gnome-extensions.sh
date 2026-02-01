@@ -10,21 +10,23 @@ echo "GNOME Extensions Setup Script"
 echo "========================================="
 echo ""
 
+# Step 1: Install GNOME Tweaks and Extensions App first
+echo "Step 1: Installing GNOME Tweaks and Extensions App..."
+echo "======================================================"
+sudo dnf install -y gnome-tweaks gnome-extensions-app
+echo "GNOME Tweaks and Extensions App installed successfully!"
+echo ""
+
 # Check if gnome-shell is installed
 if ! command -v gnome-shell &> /dev/null; then
     echo "ERROR: GNOME Shell is not installed!"
     exit 1
 fi
 
-# Install GNOME Extensions App and related tools
-echo "Installing GNOME Extensions App and dependencies..."
-echo "===================================================="
-sudo dnf install -y gnome-extensions-app gnome-tweaks
-
 # Install Extension Manager (flatpak)
 echo ""
-echo "Installing Extension Manager (GUI)..."
-echo "======================================"
+echo "Step 2: Installing Extension Manager (GUI)..."
+echo "=============================================="
 if ! command -v flatpak &> /dev/null; then
     echo "Installing Flatpak..."
     sudo dnf install -y flatpak
@@ -101,7 +103,7 @@ ENABLE_EXTENSIONS=(
     "system-monitor@gnome-shell-extensions.gcampax.github.com"
 )
 
-echo "Step 1: Installing all extensions..."
+echo "Step 3: Installing all extensions..."
 echo "====================================="
 for ext in "${ALL_EXTENSIONS[@]}"; do
     echo "Installing: $ext"
@@ -114,14 +116,14 @@ for ext in "${ALL_EXTENSIONS[@]}"; do
 done
 
 echo ""
-echo "Step 2: Disabling all extensions first..."
+echo "Step 4: Disabling all extensions first..."
 echo "=========================================="
 gnome-extensions list | while read ext; do
     gnome-extensions disable "$ext" 2>/dev/null || true
 done
 
 echo ""
-echo "Step 3: Enabling selected extensions..."
+echo "Step 5: Enabling selected extensions..."
 echo "========================================"
 for ext in "${ENABLE_EXTENSIONS[@]}"; do
     echo "Enabling: $ext"
