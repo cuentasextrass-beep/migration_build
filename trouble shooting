@@ -45,3 +45,36 @@ DJV/etc/Linux/linux-build.sh: line 22: cmake: command not found
 bash: build-Release/bin/djv/djv: No such file or directory
 tomas@localhost:~/apps$ build-Release/bin/djv/djv 
 bash: build-Release/bin/djv/djv: No such file or directory
+
+
+DJV
+
+# Install development tools and cmake
+sudo dnf groupinstall "Development Tools"
+sudo dnf install cmake gcc-c++ git
+
+# Install additional libraries that DJV likely needs
+sudo dnf install \
+    mesa-libGL-devel \
+    mesa-libGLU-devel \
+    libX11-devel \
+    libXrandr-devel \
+    libXinerama-devel \
+    libXcursor-devel \
+    libXi-devel \
+    alsa-lib-devel \
+    pulseaudio-libs-devel \
+    libjpeg-turbo-devel \
+    libtiff-devel \
+    libpng-devel \
+    freetype-devel \
+    fontconfig-devel \
+    openssl-devel \
+    zlib-devel
+
+
+# Enable EPEL and install FFmpeg
+sudo dnf install epel-release
+sudo dnf install --enablerepo=crb ffmpeg-free-devel
+
+sudo dnf install OpenColorIO-devel
