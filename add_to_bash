@@ -1,0 +1,27 @@
+# Alias definitions.
+# You may want to put all your additions into a separate file like
+# ~/.bash_aliases, instead of adding them here directly.
+# See /usr/share/doc/bash-doc/examples in the bash-doc package.
+
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
+########---CUSTOM---########
+fastfetch
+
+export HOU_ROOT=/media/tomas/Work/3D/cg/HoudiniProjects
+export CACHE_ROOT=/media/tomas/Work/3D/sim/HoudiniProjects
+export VIEWER_STATES=/media/tomas/Work/3D/states/Repos/houdini-tools/viewer_states
+export OCIO="/home/tomas/ACES/OpenColorIO-Configs-v1.0_r2-8-g0bb079c/aces_1.0.3/config.ocio"
+export LIBRARY=/media/tomas/Work/Library/
+export HDRI=/media/tomas/Work/Library/HDRIS/
+
+# add bismuth auto-generated aliases
+if [ -f /tmp/bismuth.env ]; then
+    . /tmp/bismuth.env
+    rm -f /tmp/bismuth.env
+fi
+
+
+export OLLAMA_MODELS=/media/NAS/ToMarsLabs/data/Library/AI/OLLAMA/models
