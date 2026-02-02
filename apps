@@ -1,67 +1,74 @@
 APT
 
-audacity
+sudo dnf install -y audacity
+
+
+
+sudo dnf install -y cifs-utils
+sudo dnf install -y curl
+
+
+
+sudo dnf install -y fastfetch
+
+sudo dnf install -y ffmpeg-free.x86_64
+
+sudo dnf install -y flatpak
+sudo dnf install -y gimp-fourier-plugin.x86_64
+
+sudo dnf install -y htop
+sudo dnf install -y keepassxc
+sudo dnf install -y openssh-server
+
+
+sudo dnf install -y qdirstat
+sudo dnf install -y timeshift
+sudo dnf install -y tmux
+sudo dnf install -y unrar
+sudo dnf install -y vlc
+----***wget
+
+############
+###########Flatpak
+sudo flatpak install flathub com.discordapp.Discord
+sudo flatpak install flathub com.github.iwalton3.jellyfin-media-player
+flatpak install flathub fr.handbrake.ghb
+flatpak install flathub io.github.realmazharhussain.GdmSettings
+flatpak install flathub org.nickvision.tubeconverter
+
+
+SNAP
+blender
+
+############
+###CUSTOM REPO
 
 sudo dnf install dnf-plugins-core
 sudo dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo
 sudo dnf install brave-browser
 
 
-sudo dnf install -y cifs-utils
-sudo dnf install -y curl
+####
+###APP IMAGE
 
-sudo dnf install libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel mesa-libGL-devel pipewire-devel
-cd
-mkdir apps
-cd apps
-git clone https://github.com/grizzlypeak3d/DJV.git
-sh DJV/sbuild-linux.sh
+
+sudo snap install blender --classic
 
 
 
-djv2
-fastfetch
-ffmpeg
-flatpak
-gimp
-git
-htop
-keepassxc
-libreoffice
-openssh-server
+
+
+####################
+####Downloaded
+
+djv
 parsec
-pipx
 pureref
-qdirstat
-timeshift
-tmux
-unrar
-uuid-runtime
-vlc
-wakeonlan
-wget
+############
+#######Custom scripts
 
-Flatpak
-Discord
-Jellyfin
-HandBreak
-GDM settings
-HydraPaper
-Parabolic
-Upscayle
-Natron
-
-SNAP
-blender
-
-
------------------
-Downloaded
------------
-Custom scripts
-
----------------
-EXTENSIONS
+#################
+#########EXTENSIONS
 
 have all these extensions
 
