@@ -1,8 +1,13 @@
+########RPM
+
+cd
+cd INSTALL
+
+sudo dnf install -y PureRef-2.1.0_x64.rpm
+
 ####Downloaded
 
 djv
-pureref
-obs
 reaper
 comfyui
 stable diffusion
