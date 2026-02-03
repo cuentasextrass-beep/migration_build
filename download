@@ -6,10 +6,39 @@ cd INSTALL
 
 sudo dnf install -y PureRef-2.1.0_x64.rpm
 
+#########
+##----TAR
+#########
+
+####-REAPER-###
+~/tar/reaper/install-reaper-apps.sh
+
+
+#####-MESHROOM-#####
+wget -O ~/tar/Meshroom-2025.1.0-Linux.tar.gz "https://zenodo.org/records/16887472/files/Meshroom-2025.1.0-Linux.tar.gz"
+tar -xzf ~/tar/Meshroom-2025.1.0-Linux.tar.gz -C ~/apps
+mv ~/apps/Meshroom-* ~/apps/Meshroom
+
+
+###########
+APPIMAGE
+###########
+
+sudo dnf install -y fuse fuse-libs
+sudo dnf install -y dbus-glib
+
+
+chmod + all filse in $HOME/apps
+
+##Bridge 
+##byplay
+
+sudo dnf install -y dbus-glib
+##fspy
+~/apps/djv/bin/djv
+
 ####Downloaded
 
-djv
-reaper
 comfyui
 stable diffusion
 ACES
@@ -23,19 +52,6 @@ Meshroom
 ollama
 web-ui
 cascadeur
-
-######APPIMAGE
-sudo dnf install -y fuse fuse-libs
-sudo dnf install -y dbus-glib
-
-
-chmod + all filse in $HOME/apps
-
-##Bridge - megascans
-##byplay
-
-sudo dnf install -y dbus-glib
-##fspy
 
 
 #######Custom scripts
