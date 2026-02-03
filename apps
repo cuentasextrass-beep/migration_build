@@ -35,6 +35,8 @@ sudo flatpak install flathub com.github.iwalton3.jellyfin-media-player
 flatpak install flathub fr.handbrake.ghb
 flatpak install flathub io.github.realmazharhussain.GdmSettings
 flatpak install flathub org.nickvision.tubeconverter
+flatpak install flathub com.obsproject.Studio
+
 
 
 SNAP
