@@ -1,0 +1,1043 @@
+#!/usr/bin/python3
+
+import os
+import shutil
+import argparse
+from pathlib import Path
+import sys
+import getpass
+from math import floor
+
+
+warning_ascii = [
+    "",
+    "██╗    ██╗ █████╗ ██████╗ ███╗   ██╗██╗███╗   ██╗ ██████╗ ",
+    "██║    ██║██╔══██╗██╔══██╗████╗  ██║██║████╗  ██║██╔════╝ ",
+    "██║ █╗ ██║███████║██████╔╝██╔██╗ ██║██║██╔██╗ ██║██║  ███╗",
+    "██║███╗██║██╔══██║██╔══██╗██║╚██╗██║██║██║╚██╗██║██║   ██║",
+    "╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║██║██║ ╚████║╚██████╔╝",
+    " ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝ "
+]
+#for line in warning_ascii:
+#    print(f"\033[91m{line}\033[0m") 
+
+
+def check_exit(user_input):
+    """Check if user wants to exit the script"""
+    if user_input.lower() in ['exit', 'quit']:
+        print("\nExiting script without making any changes.")
+        sys.exit(0)
+
+#def get_terminal_width():
+#    """Get the current terminal width"""
+ #   try:
+  #     return os.get_terminal_size().columns
+  #  except:
+  #      return 80  # fallback width
+
+def get_directory_size_bytes(path):
+    """Calculate total size of a directory in bytes"""
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if not os.path.islink(fp):
+                try:
+                    total_size += os.path.getsize(fp)
+                except OSError:
+                    pass
+    return total_size
+
+def create_progress_bar(progress):
+    """Create a progress bar string with fixed width of 80 characters"""
+    # Bar will be 50 characters wide (############-------)
+    bar_width = 50
+    filled_length = int(bar_width * progress)
+    empty_length = bar_width - filled_length
+    
+    bar = '\033[92m#\033[0m' * filled_length + '\033[94m-\033[0m' * empty_length
+    percent = int(progress * 100)
+    
+    # Format: "Progress: [#####-----] 100%"
+    return f"\r\033[92mProgress: \033[94m[\033[0m{bar}\033[94m] \033[0m{percent}%"
+
+def move_with_progress(src, dst):
+    """Move a file or directory with progress bar based on file size"""
+    if os.path.isfile(src):
+        file_size = os.path.getsize(src)
+        shutil.move(src, dst)
+        sys.stdout.write(create_progress_bar(1.0))
+        sys.stdout.write('\n')
+        sys.stdout.flush()
+        return
+
+    total_size = get_directory_size_bytes(src)
+    if total_size == 0:
+        os.makedirs(dst, exist_ok=True)
+        return
+
+    processed_size = 0
+    # First make all the directories
+    for root, dirs, files in os.walk(src):
+        for d in dirs:
+            src_dir = os.path.join(root, d)
+            dst_dir = os.path.join(dst, os.path.relpath(src_dir, src))
+            os.makedirs(dst_dir, exist_ok=True)
+
+    # Then move all the files with progress tracking
+    for root, dirs, files in os.walk(src, topdown=False):
+        for f in files:
+            src_file = os.path.join(root, f)
+            dst_file = os.path.join(dst, os.path.relpath(src_file, src))
+            
+            try:
+                file_size = os.path.getsize(src_file)
+                os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                shutil.move(src_file, dst_file)
+                processed_size += file_size
+                
+                if total_size > 0:  # Avoid division by zero
+                    progress = processed_size / total_size
+                    sys.stdout.write(create_progress_bar(progress))
+                    sys.stdout.flush()
+            except (OSError, shutil.Error) as e:
+                print(f"\nError moving file {src_file}: {e}")
+                continue
+
+    # Clean up empty source directories
+    try:
+        shutil.rmtree(src)
+    except OSError as e:
+        print(f"\nError removing source directory {src}: {e}")
+    
+    sys.stdout.write('\n')
+    sys.stdout.flush()
+
+def copy_with_progress(src, dst):
+    """Copy a file or directory with progress bar based on file size"""
+    if os.path.isfile(src):
+        file_size = os.path.getsize(src)
+        shutil.copy2(src, dst)
+        sys.stdout.write(create_progress_bar(1.0))
+        sys.stdout.write('\n')
+        sys.stdout.flush()
+        return
+
+    total_size = get_directory_size_bytes(src)
+    if total_size == 0:
+        os.makedirs(dst, exist_ok=True)
+        return
+
+    processed_size = 0
+    # First make all the directories
+    for root, dirs, files in os.walk(src):
+        for d in dirs:
+            src_dir = os.path.join(root, d)
+            dst_dir = os.path.join(dst, os.path.relpath(src_dir, src))
+            try:
+                os.makedirs(dst_dir, exist_ok=True)
+            except OSError as e:
+                print(f"\nError creating directory {dst_dir}: {e}")
+                continue
+
+    # Then copy all files with progress tracking
+    for root, dirs, files in os.walk(src):
+        for f in files:
+            src_file = os.path.join(root, f)
+            dst_file = os.path.join(dst, os.path.relpath(src_file, src))
+            try:
+                file_size = os.path.getsize(src_file)
+                os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                shutil.copy2(src_file, dst_file)
+                processed_size += file_size
+                
+                if total_size > 0:  # Avoid division by zero
+                    progress = processed_size / total_size
+                    sys.stdout.write(create_progress_bar(progress))
+                    sys.stdout.flush()
+            except (OSError, shutil.Error) as e:
+                print(f"\nError copying file {src_file}: {e}")
+                continue
+
+    sys.stdout.write('\n')
+    sys.stdout.flush()
+
+def delete_with_progress(path):
+    """Delete a file or directory with progress bar based on file size"""
+    if os.path.isfile(path):
+        file_size = os.path.getsize(path)
+        os.remove(path)
+        sys.stdout.write(create_progress_bar(1.0))
+        sys.stdout.write('\n')
+        sys.stdout.flush()
+        return
+
+    total_size = get_directory_size_bytes(path)
+    if total_size == 0:
+        os.rmdir(path)
+        return
+
+    processed_size = 0
+    # First delete all files with progress tracking
+    for root, dirs, files in os.walk(path, topdown=False):
+        for f in files:
+            file_path = os.path.join(root, f)
+            try:
+                file_size = os.path.getsize(file_path)
+                os.remove(file_path)
+                processed_size += file_size
+                
+                if total_size > 0:  # Avoid division by zero
+                    progress = processed_size / total_size
+                    sys.stdout.write(create_progress_bar(progress))
+                    sys.stdout.flush()
+            except OSError as e:
+                print(f"\nError deleting file {file_path}: {e}")
+                continue
+
+    # Then delete all empty directories
+    for root, dirs, files in os.walk(path, topdown=False):
+        for d in dirs:
+            try:
+                os.rmdir(os.path.join(root, d))
+            except OSError as e:
+                print(f"\nError removing directory {os.path.join(root, d)}: {e}")
+                continue
+
+    try:
+        os.rmdir(path)
+    except OSError as e:
+        print(f"\nError removing directory {path}: {e}")
+
+    sys.stdout.write('\n')
+    sys.stdout.flush()
+
+def get_folder_size(path):
+    """Calculate total size of a folder in gigabytes"""
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size / (1024 * 1024 * 1024)  # Convert to GB
+
+def load_kratos_config():
+    """Load PROJECT_BASES and ARCHIVED_BASE from kratos script"""
+    try:
+        hermes_dir = os.path.dirname(os.path.realpath(__file__))
+        kratos_path = os.path.join(hermes_dir, 'kratos')
+        
+        if not os.path.exists(kratos_path):
+            print(f"Error: Could not find kratos script at {kratos_path}")
+            sys.exit(1)
+        
+        with open(kratos_path, 'r') as f:
+            kratos_content = f.read()
+        
+        start = kratos_content.find("PROJECT_BASES = {")
+        end = kratos_content.find("}", kratos_content.find("ARCHIVED_BASE")) + 1
+        
+        if start == -1:
+            print("Error: Could not find PROJECT_BASES in kratos script")
+            sys.exit(1)
+            
+        namespace = {
+            'os': os,
+            'Path': Path
+        }
+        exec(kratos_content[start:end], namespace)
+        
+        return namespace['PROJECT_BASES'], namespace['ARCHIVED_BASE']
+        
+    except Exception as e:
+        print(f"Error loading kratos configuration: {e}")
+        sys.exit(1)
+
+def get_symlinks_in_project(project_path):
+    """Get list of symlink directories in the project"""
+    try:
+        symlinks = []
+        for item in os.listdir(project_path):
+            full_path = os.path.join(project_path, item)
+            if os.path.islink(full_path):
+                symlinks.append(item)
+        return symlinks
+    except Exception as e:
+        print(f"Error getting symlinks: {e}")
+        return []
+
+def select_project_base(project_bases, message="Select source project base:"):
+    """Let user select a project base"""
+    while True:
+        print(message)
+        for key, data in project_bases.items():
+            print(f"{key}. {data['name']}")
+        
+        selection = input("Enter the number of the project base: ")
+        check_exit(selection)
+        
+        if selection in project_bases:
+            return project_bases[selection]
+        print("Invalid selection. Please try again.")
+
+def list_projects(hou_root):
+    """List all projects in the given HOU_ROOT"""
+    try:
+        while True:
+            projects = [d for d in os.listdir(hou_root) 
+                       if os.path.isdir(os.path.join(hou_root, d)) 
+                       and not d.startswith((".", ",", "#"))]
+            
+            if not projects:
+                print(f"No projects found in {hou_root}")
+                return None
+                
+            print("\nAvailable projects:")
+            for idx, project in enumerate(projects, 1):
+                print(f"{idx}. {project}")
+                
+            selection = input("\nSelect project number: ")
+            check_exit(selection)
+            
+            try:
+                selection = int(selection)
+                if 1 <= selection <= len(projects):
+                    return projects[selection-1]
+                print("Invalid selection. Please try again.")
+            except ValueError:
+                print("Please enter a valid number.")
+                
+    except Exception as e:
+        print(f"Error listing projects: {e}")
+        return None
+
+def handle_confirmation(prompt):
+    """Handle user confirmation with option to return to selections"""
+    while True:
+        response = input(prompt).lower()
+        check_exit(response)
+        
+        if response == 'y':
+            return True
+        elif response == 'n':
+            while True:
+                choice = input("Would you like to return to selections or quit? (select/quit): ").lower()
+                check_exit(choice)
+                
+                if choice == 'select':
+                    return False
+                elif choice == 'quit':
+                    print("\nExiting script without making any changes.")
+                    sys.exit(0)
+                print("Invalid choice. Please enter 'select' or 'quit'.")
+        print("Invalid input. Please enter 'y' or 'n'.")
+
+def remove_symlinks(project_path, sim_dirs):
+    """Remove all symlinks in the project directory"""
+    try:
+        for sim_dir in sim_dirs:
+            symlink_path = os.path.join(project_path, sim_dir)
+            if os.path.islink(symlink_path):
+                os.unlink(symlink_path)
+                #print(f"Removed symlink: {symlink_path}")
+    except Exception as e:
+        print(f"Error removing symlinks: {e}")
+        return False
+    return True
+
+def create_symlinks(project_path, cache_path, sim_dirs):
+    """Create symlinks from cache to project directory"""
+    try:
+        for sim_dir in sim_dirs:
+            source = os.path.join(cache_path, sim_dir)
+            target = os.path.join(project_path, sim_dir)
+            if os.path.exists(source):
+                os.symlink(source, target)
+                #print(f"Created symlink: {target} -> {source}")
+    except Exception as e:
+        print(f"Error creating symlinks: {e}")
+        return False
+    return True
+
+def move_project(project_name, source_base, dest_base):
+    """Move project from source to destination base"""
+    try:
+        source_hou = os.path.join(source_base["HOU_ROOT"], project_name)
+        source_cache = os.path.join(source_base["CACHE_ROOT"], project_name)
+        
+        sim_dirs = get_symlinks_in_project(source_hou)
+        if not sim_dirs:
+            print("\033[91mWarning: \033[94mNo symlinks found in project directory\033[0m")
+            if not handle_confirmation("Continue anyway? (y/n): "):
+                return False
+        
+        dest_hou = os.path.join(dest_base["HOU_ROOT"], project_name)
+        dest_cache = os.path.join(dest_base["CACHE_ROOT"], project_name)
+        
+        if os.path.exists(dest_hou) or os.path.exists(dest_cache):
+            print(f"Project {project_name} already exists in destination. Aborting.")
+            return False
+            
+        if not remove_symlinks(source_hou, sim_dirs):
+            return False
+            
+        print(f"\nMoving project directory...")
+        move_with_progress(source_hou, dest_hou)
+        
+        print(f"Moving cache directory...")
+        move_with_progress(source_cache, dest_cache)
+        
+        if not create_symlinks(dest_hou, dest_cache, sim_dirs):
+            return False
+            
+        print(f"\nSuccessfully moved project {project_name} to {dest_base['name']}")
+        return True
+        
+    except Exception as e:
+        print(f"Error moving project: {e}")
+        return False
+
+def clean_cache_folders(cache_path, selected_folders):
+    """Delete files but keep folder structure in selected cache folders"""
+    try:
+        for folder in selected_folders:
+            folder_path = os.path.join(cache_path, folder)
+            if not os.path.exists(folder_path):
+                print(f"\033[91mWarning: \033[94mFolder {folder} not found\033[0m")
+                continue
+                
+            folder_size = get_folder_size(folder_path)
+            if folder_size > 50:
+                while True:
+                    response = input(f"\n\n\033[91mWarning:\n \033[94mFolder {folder} is {folder_size:.2f}GB. Continue/Go back/Quit? (c/b/q): \033[0m")
+                    check_exit(response)
+                    
+                    if response.lower() == 'q':
+                        sys.exit(0)
+                    elif response.lower() == 'b':
+                        return False
+                    elif response.lower() == 'c':
+                        break
+                    print("Invalid input. Please enter 'c', 'b', or 'q'.")
+            
+            for root, dirs, files in os.walk(folder_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    if not os.path.islink(file_path):
+                        os.remove(file_path)
+                        #print(f"Deleted: {file_path}")
+                        
+        return True
+    except Exception as e:
+        print(f"Error cleaning cache folders: {e}")
+        return False
+
+
+def get_archive_path(source_base, project_name):
+    """
+    Generate archive path based on source base.
+    Prioritizes archive_folder_name if available
+    Falls back to local_{username} for local bases
+    """
+    if 'archive_folder_name' in source_base:
+        return source_base['archive_folder_name']
+    
+    if source_base['name'].lower() == 'local':
+        username = getpass.getuser()
+        return f"local_{username}"
+    
+    # Fallback to base name with camelCase conversion
+    #base_name = source_base['name'].lower()
+    #words = base_name.split()
+    #if len(words) > 1:
+    #    camel_case = words[0] + ''.join(word.capitalize() for word in words[1:])
+    #    return camel_case
+    
+    return base_name
+
+def archive_project(project_name, source_base, archived_base):
+    """Archive project to ARCHIVED_BASE"""
+    try:
+        source_hou = os.path.join(source_base["HOU_ROOT"], project_name)
+        source_cache = os.path.join(source_base["CACHE_ROOT"], project_name)
+        source_viewer = os.path.join(source_base.get("VIEWER_STATES", ""), project_name)
+        
+        # Check if source project directory exists
+        if not os.path.exists(source_hou):
+            print(f"\033[91mError: \033[94mSource project directory {source_hou} does not exist\033[0m")
+            return False
+        
+        archive_subfolder = get_archive_path(source_base, project_name)
+        
+        dest_hou = os.path.join(archived_base["HOU_ROOT"], archive_subfolder, project_name)
+        dest_cache = os.path.join(archived_base["CACHE_ROOT"], archive_subfolder, project_name)
+        dest_viewer = os.path.join(archived_base.get("VIEWER_STATES", ""), archive_subfolder, project_name)
+        
+        os.makedirs(os.path.dirname(dest_hou), exist_ok=True)
+        os.makedirs(os.path.dirname(dest_cache), exist_ok=True)
+        if "VIEWER_STATES" in archived_base:
+            os.makedirs(os.path.dirname(dest_viewer), exist_ok=True)
+        
+        # Skip cache operations if cache directory doesn't exist
+        cache_exists = os.path.exists(source_cache)
+        
+        if cache_exists:
+            cache_folders = [d for d in os.listdir(source_cache) 
+                            if os.path.isdir(os.path.join(source_cache, d))]
+            
+            print("\nAvailable cache folders:")
+            for folder in cache_folders:
+                folder_path = os.path.join(source_cache, folder)
+                size = get_folder_size(folder_path)
+                print(f"- {folder} \033[94m->\033[0m \033[92m{size:.2f} GB\033[0m")
+                
+            while True:
+                folders_input = input("\nEnter folders to clean (space-separated) or 'all': ").strip()
+                check_exit(folders_input)
+                
+                if folders_input.lower() == 'all':
+                    selected_folders = cache_folders
+                    break
+                selected_folders = folders_input.split()
+                if all(folder in cache_folders for folder in selected_folders):
+                    break
+                print("Invalid folder selection. Please try again.")
+                
+            for line in warning_ascii:
+                print(f"\033[91m{line}\033[0m") 
+                
+            print("\n\033[91mWARNING: \033[94mFiles in selected folders will be permanently deleted.\033[0m") 
+            
+            print("\nSelected folders for cleaning:")
+            for folder in selected_folders:
+                folder_path = os.path.join(source_cache, folder)
+                size = get_folder_size(folder_path)
+                print(f"- {folder} \033[94m->\033[0m \033[92m{size:.2f} GB\033[0m")
+
+            confirm = input("\nFiles would be \033[91mDELETED\033[0m, Want to continue? (y/n): ")
+            if confirm.lower() != 'y':
+                return False
+                
+            if not clean_cache_folders(source_cache, selected_folders):
+                return False
+        else:
+            print(f"\033[93mNote: \033[94mCache directory {source_cache} does not exist. Skipping cache operations.\033[0m")
+            
+        symlinks = get_symlinks_in_project(source_hou)
+        if not remove_symlinks(source_hou, symlinks):
+            return False
+            
+        print(f"\nMoving project directory...")
+        move_with_progress(source_hou, dest_hou)
+        
+        if cache_exists:
+            print(f"Moving cache directory...")
+            move_with_progress(source_cache, dest_cache)
+        
+        if os.path.exists(source_viewer) and "VIEWER_STATES" in archived_base:
+            print(f"Moving viewer states...")
+            move_with_progress(source_viewer, dest_viewer)
+        
+        # Only create symlinks for existing cache folders
+        if cache_exists and os.path.exists(dest_cache):
+            if not create_symlinks(dest_hou, dest_cache, symlinks):
+                return False
+            
+        print(f"\nSuccessfully archived project {project_name} to {archived_base['name']}")
+        return True
+        
+    except Exception as e:
+        print(f"Error archiving project: {e}")
+        return False
+        
+def get_destination_path():
+    """Prompt user for destination path and validate it"""
+    while True:
+        dest_path = input("\nEnter destination path: ").strip()
+        check_exit(dest_path)
+        
+        # Expand user path (e.g., ~/ to /home/username/)
+        dest_path = os.path.expanduser(dest_path)
+        
+        if not os.path.exists(dest_path):
+            create = input(f"\nDestination path {dest_path} does not exist. Create it? (y/n): ")
+            check_exit(create)
+            
+            if create.lower() == 'y':
+                try:
+                    os.makedirs(dest_path)
+                    return dest_path
+                except Exception as e:
+                    print(f"Error creating directory: {e}")
+                    continue
+            else:
+                continue
+        else:
+            return dest_path
+
+def move_to_path(project_name, source_base, destination_path, operation_type='move'):
+    """Move or copy project to a specific path"""
+    try:
+        source_hou = os.path.join(source_base["HOU_ROOT"], project_name)
+        source_cache = os.path.join(source_base["CACHE_ROOT"], project_name)
+        
+        # Create project directory in destination
+        dest_project_path = os.path.join(destination_path, project_name)
+        dest_hou = os.path.join(dest_project_path, "hou")
+        dest_cache = os.path.join(dest_project_path, "cache")
+        
+        if os.path.exists(dest_project_path):
+            print(f"\nProject directory already exists at {dest_project_path}. \n\033[91mAborting.\033[0m")
+            return False
+            
+        os.makedirs(dest_hou, exist_ok=True)
+        os.makedirs(dest_cache, exist_ok=True)
+        
+        # Get and handle symlinks
+        symlinks = get_symlinks_in_project(source_hou)
+        if operation_type == 'move':
+            if not remove_symlinks(source_hou, symlinks):
+                return False
+        
+        print(f"\n{operation_type.capitalize()}ing project directory...")
+        if operation_type == 'copy':
+            # Copy everything except symlinks
+            for item in os.listdir(source_hou):
+                src_item = os.path.join(source_hou, item)
+                dst_item = os.path.join(dest_hou, item)
+                if not os.path.islink(src_item):
+                    copy_with_progress(src_item, dst_item)
+        else:
+            move_with_progress(source_hou, dest_hou)
+        
+        print(f"{operation_type.capitalize()}ing cache directory...")
+        if operation_type == 'copy':
+            copy_with_progress(source_cache, dest_cache)
+        else:
+            move_with_progress(source_cache, dest_cache)
+        
+        print(f"\nSuccessfully {operation_type}d project {project_name} to {dest_project_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error {operation_type}ing project: {e}")
+        return False
+        
+def get_directory_size(path):
+    """Calculate total size of a directory in gigabytes"""
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size / (1024 * 1024 * 1024)  # Convert to GB
+
+def copy_project(project_name, source_base, dest_base):
+    """Copy project from source to destination base"""
+    try:
+        source_hou = os.path.join(source_base["HOU_ROOT"], project_name)
+        source_cache = os.path.join(source_base["CACHE_ROOT"], project_name)
+        
+        sim_dirs = get_symlinks_in_project(source_hou)
+        if not sim_dirs:
+            print("\033[91mWarning: \033[94mNo symlinks found in project directory\033[0m")
+            if not handle_confirmation("Continue anyway? (y/n): "):
+                return False
+        
+        dest_hou = os.path.join(dest_base["HOU_ROOT"], project_name)
+        dest_cache = os.path.join(dest_base["CACHE_ROOT"], project_name)
+        
+        if os.path.exists(dest_hou) or os.path.exists(dest_cache):
+            print(f"Project {project_name} already exists in destination. Aborting.")
+            return False
+        
+        print(f"\nCopying project directory...")
+        os.makedirs(dest_hou)
+        for item in os.listdir(source_hou):
+            src_item = os.path.join(source_hou, item)
+            dst_item = os.path.join(dest_hou, item)
+            if not os.path.islink(src_item):
+                copy_with_progress(src_item, dst_item)
+        
+        print(f"Copying cache directory...")
+        copy_with_progress(source_cache, dest_cache)
+        
+        if not create_symlinks(dest_hou, dest_cache, sim_dirs):
+            return False
+            
+        print(f"\nSuccessfully copied project {project_name} to {dest_base['name']}")
+        return True
+        
+    except Exception as e:
+        print(f"Error copying project: {e}")
+        return False
+
+def list_multiple_projects(hou_root):
+    """List all projects and allow multiple selections"""
+    try:
+        projects = [d for d in os.listdir(hou_root) 
+                   if os.path.isdir(os.path.join(hou_root, d)) 
+                   and not d.startswith((".", ",", "#"))]
+        
+        if not projects:
+            print(f"No projects found in {hou_root}")
+            return None
+            
+        print("\nAvailable projects:")
+        for idx, project in enumerate(projects, 1):
+            print(f"{idx}. {project}")
+            
+        while True:
+            selection = input("\nSelect project numbers (space-separated) or 'all': ").strip()
+            check_exit(selection)
+            
+            if selection.lower() == 'all':
+                return projects
+                
+            try:
+                indices = [int(x) for x in selection.split()]
+                if all(1 <= idx <= len(projects) for idx in indices):
+                    return [projects[idx-1] for idx in indices]
+                print("Invalid selection. Please try again.")
+            except ValueError:
+                print("Please enter valid numbers separated by spaces.")
+                
+    except Exception as e:
+        print(f"Error listing projects: {e}")
+        return None
+
+def delete_project(project_name, base):
+    """Delete project and its cache"""
+    try:
+        hou_path = os.path.join(base["HOU_ROOT"], project_name)
+        cache_path = os.path.join(base["CACHE_ROOT"], project_name)
+        viewer_path = os.path.join(base.get("VIEWER_STATES", ""), project_name)
+        
+        symlinks = get_symlinks_in_project(hou_path)
+        if symlinks:
+            remove_symlinks(hou_path, symlinks)
+        
+        if os.path.exists(hou_path):
+            print(f"Deleting project directory...")
+            delete_with_progress(hou_path)
+            
+        if os.path.exists(cache_path):
+            print(f"Deleting cache directory...")
+            delete_with_progress(cache_path)
+            
+        if "VIEWER_STATES" in base and os.path.exists(viewer_path):
+            print(f"Deleting viewer states...")
+            delete_with_progress(viewer_path)
+            
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting project {project_name}: {e}")
+        return False
+
+def list_archive_subfolders(archived_base):
+    """List all subfolders in the archived base's HOU_ROOT"""
+    try:
+        hou_root = archived_base["HOU_ROOT"]
+        subfolders = [d for d in os.listdir(hou_root) 
+                     if os.path.isdir(os.path.join(hou_root, d))
+                     and not d.startswith((".", ",", "#"))]
+        
+        if not subfolders:
+            print(f"No archive subfolders found in {hou_root}")
+            return None
+            
+        print("\nAvailable archive folders:")
+        for idx, folder in enumerate(subfolders, 1):
+            print(f"{idx}. {folder}")
+            
+        while True:
+            selection = input("\nSelect folder number: ").strip()
+            check_exit(selection)
+            
+            try:
+                selection = int(selection)
+                if 1 <= selection <= len(subfolders):
+                    return subfolders[selection-1]
+                print("Invalid selection. Please try again.")
+            except ValueError:
+                print("Please enter a valid number.")
+                
+    except Exception as e:
+        print(f"Error listing archive subfolders: {e}")
+        return None
+
+def list_projects_in_path(path):
+    """List all projects in the given path"""
+    try:
+        projects = [d for d in os.listdir(path) 
+                   if os.path.isdir(os.path.join(path, d)) 
+                   and not d.startswith((".", ",", "#"))]
+        
+        if not projects:
+            print(f"No projects found in {path}")
+            return None
+            
+        print("\nAvailable projects:")
+        for idx, project in enumerate(projects, 1):
+            print(f"{idx}. {project}")
+            
+        while True:
+            selection = input("\nSelect project numbers (space-separated) or 'all': ").strip()
+            check_exit(selection)
+            
+            if selection.lower() == 'all':
+                return projects
+                
+            try:
+                indices = [int(x) for x in selection.split()]
+                if all(1 <= idx <= len(projects) for idx in indices):
+                    return [projects[idx-1] for idx in indices]
+                print("Invalid selection. Please try again.")
+            except ValueError:
+                print("Please enter valid numbers separated by spaces.")
+                
+    except Exception as e:
+        print(f"Error listing projects: {e}")
+        return None
+
+def handle_delete_operation(project_bases, archived_base):
+    """Handle the delete operation workflow"""
+    # Show initial warning
+    print("\n" + "!"*80)
+    for line in warning_ascii:
+        print(f"\033[91m{line}\033[0m".center(80))
+    print("\033[94mThis operation will \033[91mPERMANENTLY DELETE \033[94mprojects and their associated data.\033[0m".center(80))
+    print("\033[94mThis action \033[91mCANNOT\033[94m be undone and data \033[91mCANNOT\033[94m be recovered.\033[0m".center(80))
+    print("!"*80 + "\n")
+    
+    if not handle_confirmation("Do you want to continue? (y/n): "):
+        return False
+    
+    # Combine project bases with archived base
+    all_bases = project_bases.copy()
+    all_bases['A'] = archived_base
+    
+    # Select base
+    while True:
+        print("\nSelect base to delete from:")
+        for key, data in all_bases.items():
+            print(f"{key}. {data['name']}")
+        
+        base_selection = input("\nEnter the base identifier: ").strip()
+        check_exit(base_selection)
+        
+        if base_selection.upper() == 'A':  # Make archive selection case-insensitive
+            selected_base = all_bases['A']
+            # Handle archived base specially
+            archive_subfolder = list_archive_subfolders(archived_base)
+            if not archive_subfolder:
+                return False
+                
+            # Update the HOU_ROOT and CACHE_ROOT paths to include the subfolder
+            selected_base = selected_base.copy()  # Create a copy to modify
+            selected_base["HOU_ROOT"] = os.path.join(selected_base["HOU_ROOT"], archive_subfolder)
+            selected_base["CACHE_ROOT"] = os.path.join(selected_base["CACHE_ROOT"], archive_subfolder)
+            if "VIEWER_STATES" in selected_base:
+                selected_base["VIEWER_STATES"] = os.path.join(selected_base["VIEWER_STATES"], archive_subfolder)
+            break
+        elif base_selection in all_bases:
+            selected_base = all_bases[base_selection]
+            break
+        print("Invalid selection. Please try again.")
+    
+    # Select projects
+    if base_selection.upper() == 'A':
+        selected_projects = list_projects_in_path(selected_base["HOU_ROOT"])
+    else:
+        selected_projects = list_multiple_projects(selected_base["HOU_ROOT"])
+        
+    if not selected_projects:
+        return False
+    
+    # Show selected projects and sizes
+    print("\nSelected projects to delete:")
+    total_size = 0
+    for project in selected_projects:
+        hou_path = os.path.join(selected_base["HOU_ROOT"], project)
+        cache_path = os.path.join(selected_base["CACHE_ROOT"], project)
+        
+        hou_size = get_directory_size(hou_path)
+        cache_size = get_directory_size(cache_path)
+        project_size = hou_size + cache_size
+        total_size += project_size
+        
+        print(f"- {project} \033[94m->\033[0m \033[92m{project_size:.2f} GB\033[0m")
+    
+    print(f"\nTotal size to be freed: \033[92m{total_size:.2f} GB\033[0m")
+    
+    if not handle_confirmation("\nAre these the correct projects to delete? (y/n): "):
+        return False
+    
+    # Final warning and confirmation
+    print("\n" + "!"*80)
+    for line in warning_ascii:
+        print(f"\033[91m{line}\033[0m".center(80))
+    print("\033[94mYou are about to \033[91mPERMANENTLY DELETE \033[94mthese projects.\033[0m".center(80))
+    print("\033[94mThis is a \033[91mFINAL WARNING\033[94m, action \033[91mCANNOT\033[94m be undone.\033[0m".center(80))
+    print("!"*80 + "\n")
+    
+    delete_confirm = input("Type '\033[91mDELETE\033[0m' (all caps) to confirm deletion: ")
+    if delete_confirm != "DELETE":
+        print("Deletion cancelled.")
+        return False
+    
+    # Perform deletion
+    success = True
+    for project in selected_projects:
+        if delete_project(project, selected_base):
+            print(f"\nSuccessfully deleted project: {project}")
+        else:
+            print(f"\n\033[91mFailed to delete project: {project}\033[0m")
+            success = False
+    
+    return success
+    
+def main():
+    parser = argparse.ArgumentParser(description="Hermes - Project Migration and Archiving Tool")
+    parser.add_argument('-a', '--archive', action='store_true', help='Archive project instead of moving it')
+    parser.add_argument('-p', '--path', action='store_true', help='Move/copy project to a specific path')
+    parser.add_argument('-c', '--copy', action='store_true', help='Copy project instead of moving it')
+    parser.add_argument('-d', '--delete', action='store_true', help='Delete project(s) permanently')
+    args = parser.parse_args()
+
+    print("Hermes - Project Migration Tool\n")
+    
+    PROJECT_BASES, ARCHIVED_BASE = load_kratos_config()
+    
+    if sum([args.archive, args.path, args.copy, args.delete]) > 1:
+        print("Cannot use multiple operation modes simultaneously. Please choose one.")
+        sys.exit(1)
+    
+    if args.delete:
+        if handle_delete_operation(PROJECT_BASES, ARCHIVED_BASE):
+            print("\nProject deletion completed successfully!")
+        else:
+            print("\n\033[91mProject deletion failed or was cancelled!\033[0m")
+        return
+    
+    if args.archive:
+        # Archive mode code remains unchanged
+        for line in warning_ascii:
+            print(f"\033[91m{line}\033[0m")
+        
+        print("\033[91mWARNING: \033[94mArchiving mode activated. This operation may delete files!\n\033[0m")
+    
+        while True:  # Main loop for the entire process
+            # Select source and project
+            while True:
+                source_base = select_project_base(PROJECT_BASES, "Select source project base:")
+                if not source_base:
+                    continue
+                    
+                project_name = list_projects(source_base["HOU_ROOT"])
+                if not project_name:
+                    continue
+                    
+                print(f"\nSelected project: {project_name}")
+                if handle_confirmation("Is this correct? (y/n): "):
+                    break
+            
+            print(f"\nReady to archive project: {project_name}")
+            print(f"From: {source_base['name']}")
+            print(f"To: {ARCHIVED_BASE['name']}")
+            
+            if handle_confirmation("\nProceed with archiving? (y/n): "):
+                if archive_project(project_name, source_base, ARCHIVED_BASE):
+                    print("\nProject archiving completed successfully!")
+                else:
+                    print("\n\033[91mProject archiving failed!\033[0m")
+                break  # Exit after archiving attempt
+            continue  # Go back to start if user doesn't confirm archiving
+
+    elif args.path:
+        # Path mode code remains unchanged
+        for line in warning_ascii:
+            print(f"\033[91m{line}\033[0m")
+        
+        print("\033[91mWARNING: \033[94mPath mode activated. This operation may delete files!\n\033[0m")
+        while True:
+            source_base = select_project_base(PROJECT_BASES, "Select source project base:")
+            if not source_base:
+                continue
+                
+            project_name = list_projects(source_base["HOU_ROOT"])
+            if not project_name:
+                continue
+                
+            print(f"\nSelected project: {project_name}")
+            if not handle_confirmation("Is this correct? (y/n): "):
+                continue
+            
+            dest_path = get_destination_path()
+            
+            while True:
+                operation = input("\nDo you want to move or copy the project? (move/copy): ").lower()
+                check_exit(operation)
+                if operation in ['move', 'copy']:
+                    break
+                print("Invalid input. Please enter 'move' or 'copy'.")
+            
+            print(f"\nReady to {operation} project: {project_name}")
+            print(f"From: {source_base['name']}")
+            print(f"To: {dest_path}")
+            
+            if handle_confirmation(f"\nProceed with {operation}? (y/n): "):
+                if move_to_path(project_name, source_base, dest_path, operation):
+                    print(f"\nProject {operation} completed successfully!")
+                else:
+                    print(f"\n\033[91mProject {operation} failed!\033[0m")
+                break
+    
+    else:
+        # Modified regular mode to handle both move and copy operations
+        while True:
+            source_base = select_project_base(PROJECT_BASES, "Select source project base:")
+            if not source_base:
+                continue
+                
+            project_name = list_projects(source_base["HOU_ROOT"])
+            if not project_name:
+                continue
+                
+            print(f"\nSelected project: {project_name}")
+            if not handle_confirmation("Is this correct? (y/n): "):
+                continue
+
+            dest_base = select_project_base(PROJECT_BASES, "\nSelect destination project base:")
+            if not dest_base:
+                continue
+            
+            operation = "copy" if args.copy else "move"
+            
+            # Add size warning for copy operations
+            if args.copy:
+                source_hou = os.path.join(source_base["HOU_ROOT"], project_name)
+                source_cache = os.path.join(source_base["CACHE_ROOT"], project_name)
+
+            
+            print(f"\nReady to {operation} project: {project_name}")
+            print(f"From: {source_base['name']}")
+            print(f"To: {dest_base['name']}")
+            
+            if handle_confirmation(f"\nProceed with {operation}? (y/n): "):
+                if args.copy:
+                    success = copy_project(project_name, source_base, dest_base)
+                else:
+                    success = move_project(project_name, source_base, dest_base)
+                
+                if success:
+                    print(f"\nProject {operation} completed successfully!")
+                else:
+                    print(f"\n\033[91mProject {operation} failed!\033[0m")
+                break  # Exit after operation attempt
+
+if __name__ == "__main__":
+    main()

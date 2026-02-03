@@ -1,0 +1,462 @@
+#!/usr/bin/python3
+
+import os
+import time
+import string
+import subprocess
+import shutil
+import argparse
+import glob
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description="Kratos Script")
+parser.add_argument("-v", "--version", action="store_true", help="List available Houdini versions")
+parser.add_argument("-t", "--tomars", action="store_true", help="Select ToMars Labs project base")
+parser.add_argument("-r", "--raw", action="store_true", help="Select Raw FX project base")
+parser.add_argument("-m", "--mares", action="store_true", help="Select Mares project base")
+parser.add_argument("-l", "--local", action="store_true", help="Select Local project base")
+parser.add_argument("-T", "--tomas", action="store_true", help="Select Tomas project base")
+parser.add_argument("-a", "--archived", action="store_true", help="Select Archived projects base")
+args = parser.parse_args()
+
+
+# Define project bases
+PROJECT_BASES = {
+    "1": {"name": "ToMars Labs", "HOU_ROOT": "/media/NAS/ToMarsLabs/2Mars/projects", "CACHE_ROOT": "/media/NAS/ToMarsLabs/2Mars/sim", "VIEWER_STATES": "/media/NAS/ToMarsLabs/2Mars/states/Repos/houdini-tools/viewer_states", "archive_folder_name": "2Mars"},
+    "2": {"name": "Raw FX", "HOU_ROOT": "/media/NAS/ToMarsLabs/RawFx/projects", "CACHE_ROOT": "/media/NAS/ToMarsLabs/RawFx/sim", "VIEWER_STATES": "/media/NAS/ToMarsLabs/RawFx/states/Repos/houdini-tools/viewer_states", "archive_folder_name": "RawFX"},
+    "3": {"name": "Mares", "HOU_ROOT": "/media/NAS/Mares/PersonalProjects/projects", "CACHE_ROOT": "/media/NAS/Mares/PersonalProjects/sim", "VIEWER_STATES": "/media/NAS/Mares/PersonalProjects/states/Repos/houdini-tools/viewer_states", "archive_folder_name": "Mares"},
+    "4": {"name": "Local", "HOU_ROOT": os.getenv('HOU_ROOT'), "CACHE_ROOT": os.getenv('CACHE_ROOT'), "VIEWER_STATES": os.getenv('VIEWER_STATES')},
+    "5": {"name": "Tomas", "HOU_ROOT": "/media/NAS/Tomas/PersonalProjects/projects", "CACHE_ROOT": "/media/NAS/Tomas/PersonalProjects/sim", "VIEWER_STATES": "/media/NAS/Tomas/PersonalProjects/states/Repos/houdini-tools/viewer_states", "archive_folder_name": "Tomas"}
+}
+
+# Define hidden archived base
+ARCHIVED_BASE = {
+    "name": "Archived", 
+    "HOU_ROOT": "/media/NAS/ToMarsLabs/archived/cg",
+    "CACHE_ROOT": "/media/NAS/ToMarsLabs/archived/sim",
+    "VIEWER_STATES": "/media/NAS/ToMarsLabs/archived/states/Repos/houdini-tools/viewer_states"
+}
+
+#create selectHoudini
+def selectHoudini():
+    # List Houdini installations in /opt
+    versionlist = "ls -tr1d /opt/hfs*"
+    files = os.popen(versionlist).readlines()
+    files.sort()
+    
+    if not files:
+        print("ERROR: No Houdini installations found in /opt.")
+        exit(1)
+
+    # List versions and prompt the user to select one
+    print("Available Houdini versions (newest to oldest):")
+    for idx, file in enumerate(files[::-1], start=1):  # Reversed to show newest first
+        version = os.path.basename(file.strip())
+        print(f"{idx}. {version}")
+
+    selection = input("Select a Houdini version: ")
+
+    try:
+        selected_version = files[::-1][int(selection) - 1].strip()
+        return os.path.basename(selected_version)
+    except (ValueError, IndexError):
+        print("Invalid selection")
+        exit(1)
+
+def findHoudini(list_versions=False):
+    # List Houdini installations in /opt
+    versionlist = "ls -tr1d /opt/hfs*"
+    files = os.popen(versionlist).readlines()
+    files.sort()
+
+    if not files:
+        print("ERROR: No Houdini installations found in /opt.")
+        exit(1)
+
+    if list_versions:
+        # List versions and prompt the user to select
+        print("Available Houdini versions (most recent first):")
+        for idx, file in enumerate(files[::-1], start=1):  # Reversed to show newest first
+            version = os.path.basename(file.strip())
+            print(f"{idx}. {version}")
+        selection = input("Select a Houdini version: ")
+
+        try:
+            selected_version = files[::-1][int(selection) - 1].strip()
+            return os.path.basename(selected_version)
+        except (ValueError, IndexError):
+            print("Invalid selection")
+            exit(1)
+    else:
+        # Use the latest version by default
+        latest_version = os.path.basename(files[-1].strip())
+        return latest_version
+
+# First, check if version selection is requested before anything else
+if args.version:
+    selected_version = selectHoudini()
+else:
+    # Use findHoudini as default
+    selected_version = findHoudini()
+
+# Function to list archived project bases
+def list_archived_bases():
+    archive_path = ARCHIVED_BASE["HOU_ROOT"]
+    directories = [d for d in glob.glob(f"{archive_path}/*/") if os.path.isdir(d)]
+    
+    if not directories:
+        print("No archived project bases found.")
+        exit(1)
+    
+    print("Select an archived project base:")
+    for idx, directory in enumerate(directories, start=1):
+        base_name = os.path.basename(directory.rstrip('/'))
+        print(f"{idx}. {base_name}")
+    
+    selection = input("\nEnter the number of the archived project base: ")
+    
+    try:
+        selected_base = directories[int(selection) - 1]
+        base_name = os.path.basename(selected_base.rstrip('/'))
+        
+        # Create a temporary project base structure for the selected archived base
+        return {
+            "name": f"Archived - {base_name}",
+            "HOU_ROOT": selected_base,
+            "CACHE_ROOT": os.path.join(ARCHIVED_BASE["CACHE_ROOT"], base_name),
+            "VIEWER_STATES": ARCHIVED_BASE["VIEWER_STATES"]
+        }
+    except (ValueError, IndexError):
+        print("Invalid selection")
+        exit(1)
+
+# Function to get project base from flags
+def get_project_base_from_flags(args):
+    if args.tomars:
+        return "1"
+    elif args.raw:
+        return "2"
+    elif args.mares:
+        return "3"
+    elif args.local:
+        return "4"
+    elif args.tomas:
+        return "5"
+    elif args.archived:
+        return "archived"
+    return None
+
+# Get project base selection
+selection = get_project_base_from_flags(args)
+
+# Set selected project base environment variables
+if selection == "archived":
+    selected_base = list_archived_bases()
+elif selection not in PROJECT_BASES and selection != "archived":
+    print("Select a project base:")
+    for key, data in PROJECT_BASES.items():
+        print(f"{key}. {data['name']}")
+    print(f"a. {ARCHIVED_BASE['name']}")
+    
+    selection = input("Enter the number of the project base: ")
+    
+    if selection == "a":
+        selected_base = list_archived_bases()
+    elif selection not in PROJECT_BASES:
+        print("Invalid selection. Exiting.")
+        exit(1)
+    else:
+        selected_base = PROJECT_BASES[selection]
+else:
+    selected_base = PROJECT_BASES[selection]
+
+# Set selected project base environment variables
+HOU_ROOT = selected_base["HOU_ROOT"]
+CACHE_ROOT = selected_base["CACHE_ROOT"]
+VIEWER_STATES = selected_base["VIEWER_STATES"]
+
+print(f"Selected project base: {selected_base['name']}")
+
+# Existing global variables
+HOME = os.getenv('HOME')
+EDITOR = "/usr/bin/code"
+PROJ_ROOT = ''
+SIM_ROOT = ''
+HIP = ''
+HINSTALL = ''
+
+
+## Launch functions ##
+
+# Set $JOB
+def setProject(NAME):
+    PROJ_ROOT = os.path.join(HOU_ROOT, NAME)
+    SIM_ROOT = os.path.join(CACHE_ROOT, NAME)
+    HIP = os.path.join(PROJ_ROOT, "HIP")
+    return PROJ_ROOT, SIM_ROOT, HIP
+    
+# Create list of environment variables to declare
+def initHoudini(DIRS=None, SIMDIRS=None, PROJ_ROOT=None):
+    cmd = []
+    
+    HINSTALL = os.path.join("/opt", selected_version)
+    cmd.append("cd %s\n\n" % HINSTALL)
+    hsetup = os.path.join(HINSTALL, "houdini_setup_bash")
+    cmd.append("export HFS=%s ; " % (HINSTALL))
+    cmd.append("export EDITOR=%s ; " % (EDITOR))
+    file = open(hsetup, "r", 0o777)
+    for line in file:
+        cmd.append(line)
+
+    if (VIEWER_STATES != None):
+        final_vs = VIEWER_STATES + ";&"
+        cmd.append("export HOUDINI_VIEWERSTATE_PATH=\"%s\" ; " % final_vs)
+    cmd.append("export JOB=\"%s\" ; " % PROJ_ROOT)
+    HIP_Q = "\"" + HIP + "\""
+    cmd.append("cd %s\n\n" % HIP_Q) # Return terminal to HIP directory
+    
+    # Create env vars for project sub-directories
+    for dir in DIRS:
+        cmd.append("export %s=\"%s/%s\" ; " % (dir,PROJ_ROOT,dir))
+    for dir in SIMDIRS:
+        cmd.append("export %s=\"%s/%s\" ; " % (dir,PROJ_ROOT,dir))
+    return cmd
+    
+## Config functions ##
+
+# Make directory structure
+def createDirs(workingDir=None, simDir=None, DIRS=None, SIMDIRS=None):
+    if workingDir != None:
+        if DIRS is not None:
+            for dir in DIRS:
+                path = os.path.join(workingDir, dir)
+                # If path does not exist, make it.
+                if not os.path.isdir(path):
+                    os.makedirs(path, 0o755)
+        if SIMDIRS is not None:
+            for dir in SIMDIRS:
+                homepath = os.path.join(workingDir, dir)
+                path = os.path.join(simDir, dir)
+                # If path does not exist, make it.
+                if os.path.isdir(homepath):
+                    if not os.path.isdir(path):
+                        shutil.move(homepath, path)   
+                        os.symlink(path, os.path.join(workingDir, dir))     
+                else:
+                    if not os.path.isdir(path):
+                        os.makedirs(path, 0o755)
+                        os.symlink(path, os.path.join(workingDir, dir))                   
+
+# Create list of sub-directories to create
+def createDirList():
+    dirString = "HIP BLEND REF FLIP SCRIPTS NUKE TEXTURE AE ASSETS PR"
+    simDirString = "GEO RENDER USD MESHROOM"
+    dirs = dirString.split()
+    simdirs = simDirString.split()
+    return dirs, simdirs
+
+# Create config directory
+def createConfigDir(configDir):
+    # If config directory doesn't exist, make one.
+	if not os.path.isdir(configDir):
+		print("--> Creating config directory %s" % configDir)
+		try:
+			os.makedirs(configDir)
+		except:
+			print("ERROR:  Could not make %s" % configDir)
+	if not os.path.isdir(configDir):
+		print("ERROR:  Cannot find dir %s" % configDir)
+		
+def terminalConfigFile():
+    configDir = os.path.join(HOME, ".config/kratos")
+    configFile = os.path.join(configDir, "kratos.term")
+
+# Create and access project list
+def projectList(value=None, action=None):
+    configDir = os.path.join(HOME, ".config/kratos")
+    
+    configFile = os.path.join(configDir, f"kratos.history_{selected_base['name'].replace(' ', '_')}")
+    createConfigDir(configDir)
+    
+    lastentry = ""
+    config = ""
+    
+    # Access contents of config file
+    if os.path.isfile(configFile):
+        file = open(configFile, "r")
+        config = file.read()
+        file.close()
+        lastentry = config.strip().split("\n")[-1]
+    
+    # Return config
+    if action == "lastentry":
+        return config.strip()
+        
+    if os.path.isdir(configDir):
+        # Write new project name project list
+        if action == "write":
+            if lastentry != value:
+                line = "%s" % (value)
+                file = open(configFile, "a")
+                file.write(line)
+                file.write("\n")
+                file.close
+        # Read from project list
+        if action == "read" and os.path.isfile(configFile):
+            entry = ""
+            
+            # Keep five entries
+            numentries = len(config.strip().split("\n"))
+            
+            total = []
+            if numentries > 5:
+                start = numentries - 4
+                count = 1
+                f = open(configFile, "w")
+                for x in config.strip().split("\n"):
+                    count = count + 1
+					
+                    if x.strip() != "" and count > start:
+						# don't allow duplicates in list
+                        if x not in total:
+                            total.append(x)
+                            f.write(x)
+                            f.write("\n")
+                f.close()
+			
+			# find the last entry
+            for x in config.split("\n"):
+                if x.strip() != "":
+                    entry = x
+            return entry
+
+# Launch terminal environment
+def launch(NAME=None, DIRS=None, SIMDIRS=None, PROJ_ROOT=None, HIP=None):
+    # Create terminal launch command.
+    PROJ_ROOT_Q = f"\"{PROJ_ROOT}\""
+    HIP_Q = f"\"{HIP}\""
+    NAME_Q = f"\"{NAME}\""
+    msg1 = 'echo "To open Houdini, run \'houdini\'"'
+    env = initHoudini(DIRS, SIMDIRS, PROJ_ROOT)
+    filepath = "/tmp/kratos.env"
+    
+    # Write environment variables and message to file.
+    with open(filepath, "w") as file:
+        for var in env:
+            file.write(var)
+        file.write(msg1)
+    os.chmod(filepath, 0o777)
+
+    # Create a modified bashrc excluding lines with fastfetch and neofetch.
+    user_bashrc = os.path.expanduser("~/.bashrc")
+    modified_bashrc = "/tmp/modified_bashrc"
+    with open(user_bashrc, "r") as src, open(modified_bashrc, "w") as dst:
+        for line in src:
+            if "fastfetch" not in line and "neofetch" not in line:
+                dst.write(line)
+    os.chmod(modified_bashrc, 0o644)
+
+    # Launch the terminal.
+    if os.getenv('TERM') == "xterm-kitty":
+        term = f"kitty --title={NAME_Q} --working-directory={HIP_Q} --detach"
+    else:
+        # Launch gnome-terminal using the modified bashrc so that fastfetch and neofetch are skipped.
+        term = (
+            f"gnome-terminal --title={NAME} --window-with-profile=blue_dolphin "
+            f"--working-directory={HIP_Q} -- bash -c 'source {filepath}; "
+            f"exec bash --rcfile {modified_bashrc}'"
+        )
+    os.system(term)
+
+
+#-------------------------------------------------------------------
+# User Interface
+dirslist = [
+    d for d in glob.glob(f"{HOU_ROOT}/*/") if not os.path.basename(d.strip("/")).startswith("#")
+]
+dirs = ""
+proj = ""
+
+# Initialize dirs and simdirs with default values
+dirs, simdirs = createDirList()  # Move this line here, before any conditionals
+
+if len(dirslist) > 0:
+    #
+    previous = ""
+    #projectList(action="write")
+    msg1 = "~ Select your project:"
+    msg2 = "~ Hit 0 to create a new project.\n"
+    print("-" * len(msg1))
+    print(msg1)
+    
+    count = 1
+    # Sort by last access date
+    file_list = []
+    for file in dirslist:
+        stats = os.stat(file)
+        lastModified = time.localtime(stats[8])
+        fileDate = lastModified, file
+        file_list.append(fileDate)
+    file_list.sort()
+    sorted = []
+    for file in file_list:
+        c = str(count).rjust(2)
+        p = file[-1].split("/")[-2]
+        sorted.append(p)
+        print("%s - %s" % (c, p))
+        count = count + 1
+
+    
+    # List five most recent projects
+    lastfive = projectList(action="lastentry")
+    
+    addtolength = 0
+    if lastfive != "":
+        print("\n---- Recent Shots ---")
+        addtolength = len(lastfive.strip().split("\n"))
+        
+        for curr in lastfive.strip().split("\n"):
+            c = str(count).rjust(2)
+            sorted.append(curr)
+            print("%s - %s" % (c, curr))
+            count = count + 1
+    
+    previous = projectList(action="read")
+    PREVIOUSDIR = ""
+    if previous != None:
+        PREVIOUSDIR = os.path.join(HOU_ROOT, previous)
+    if os.path.isdir(PREVIOUSDIR):
+        msg2 = "\n~ Choose a project to work on. \n- Hit 0 to create a new project. \n- Hit Enter for \"%s\"\n" % previous
+        
+    # Process user selection of project
+    selection = input(msg2)
+    # If a number is entered, check validity
+    if selection.isdigit():
+        # Throw error if selection is out of range.
+        if int(selection) > len(dirslist) + addtolength:
+            print("ERROR: Out of Range")
+            exit(0)
+        # If user selects 0, create new project.
+        if selection == "0":
+            proj = input("~ Enter a name for your project:\n")
+        # If in range and non-zero, select the corresponding project.
+        else:
+            proj = sorted[int(selection) - 1]
+    if selection == "":
+        proj = previous
+# If there are no projects in the root dir, prompt to make a new one.
+else:
+    proj = input("~ Enter a name for your project:\n")
+    
+# Set project and create directories, if necessary
+if proj != "":
+    PROJ_ROOT, SIM_ROOT, HIP = setProject(proj)
+    if not os.path.isdir(PROJ_ROOT):
+        os.makedirs(PROJ_ROOT)
+        
+    projectList(value=proj, action="write")
+    createDirs(PROJ_ROOT, SIM_ROOT, dirs, simdirs)
+
+#------------------------------------------------------
+# Launch
+launch(proj, dirs, simdirs, PROJ_ROOT, HIP)
