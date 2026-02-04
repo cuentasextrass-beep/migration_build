@@ -50,16 +50,7 @@ sudo dnf install -y dbus-glib
 ####Downloaded
 
 comfyui
-stable diffusion
 ACES
-flamenco
-Foundry
-Make Human
-
-
-
-ollama
-web-ui
 
 
 #######Custom scripts
