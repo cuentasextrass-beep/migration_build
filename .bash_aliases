@@ -4,12 +4,10 @@
 
 alias launcher='/opt/sidefx/launcher/bin/houdini_launcher'
 
-#alias blender='flatpak run org.blender.Blender'
-
-alias nuke='/home/tomas/Nuke16.0v4/Nuke16.0'
-alias nukex='/home/tomas/Nuke16.0v4/Nuke16.0 --nukex'
-alias nukeassist='/home/tomas/Nuke16.0v4/Nuke16.0 --nukeassist'
-alias foundry='/home/tomas/FoundryLicensingUtility_8.1.6.AppImage'
+alias nuke='~/apps/Nuke16.0v4/Nuke16.0'
+alias nukex='~/apps/Nuke16.0v4/Nuke16.0 --nukex'
+alias nukeassist='~/apps/Nuke16.0v4/Nuke16.0 --nukeassist'
+alias foundry='~/apps/FoundryLicensingUtility_8.1.6.AppImage'
 
 alias katana='/home/tomas/Katana7.0v3/katana'
 
