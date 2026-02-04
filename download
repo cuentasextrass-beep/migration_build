@@ -9,7 +9,7 @@ cd INSTALL
 sh ~/INSTALL/install_houdini_launcher.sh
 sudo dnf install -y PureRef-2.1.0_x64.rpm
 
-~/INSTALL/Nuke16.0v8-linux-x86_64.run --accept-foundry-eula
+~/apps/Nuke16.0v8-linux-x86_64.run --accept-foundry-eula
 
 ##############
 ###--TAR
