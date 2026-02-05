@@ -43,6 +43,7 @@ sudo dnf install -y unrar
 sudo dnf install -y vlc
 sudo dnf install -y wget
 sudo dnf install -y python3
+sudo dnf install -y ImageMagick
 
 #####################
 #####--Flatpak--#####
